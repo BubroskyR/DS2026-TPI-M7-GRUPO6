@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Configuración local con claves (RNF-06)
+.env
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store

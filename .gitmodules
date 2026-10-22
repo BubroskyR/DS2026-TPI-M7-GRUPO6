@@ -1,0 +1,3 @@
+[submodule "contratos"]
+	path = contratos
+	url = https://github.com/FRRe-DS/2026-TPI.git
