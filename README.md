@@ -2,7 +2,7 @@
 
 Servicio de tarifas, pagos y liquidaciones de la plataforma de movilidad del TPI 2026 de Desarrollo de Software (UTN FRRe). Cumple el contrato que compartimos con el Grupo 11, que está en el submódulo `contratos`, en `contratos/contratos/m7_tarifas/openapi.yml`.
 
-**Estado:** esqueleto del TP1. Por ahora responde solo `GET /health`. Falta sumar en `keycloak/` el archivo del realm `ds-2026-realm`.
+**Estado:** TP1 en curso. Responden `GET /health` y las rutas de tarifas: la estimación, la tarifa final de cada viaje y las reglas de tarifa. Faltan los pagos, las cancelaciones, los reembolsos y las liquidaciones. Falta sumar en `keycloak/` el archivo del realm `ds-2026-realm`.
 
 ## Integrantes
 
@@ -71,6 +71,8 @@ PostgreSQL, propia de M7: los demás módulos no consultan sus tablas, usan la A
 | Tabla | Qué guarda |
 | --- | --- |
 | `claves_idempotencia` | Cada `Idempotency-Key` usada, con la huella del cuerpo y la respuesta que se devolvió (RF-7.6) |
+| `reglas_tarifa` | Las reglas de tarifa de cada tipo de vehículo. Un índice único deja una sola activa por tipo |
+| `tarifas_finales` | La tarifa final de cada viaje terminado, con su desglose. El viaje es la clave primaria: hay una sola por viaje |
 
 ## API
 

@@ -68,6 +68,13 @@ class ServicioNoDisponible(HTTPException):
         super().__init__(status_code=503, headers={"Retry-After": str(reintentar_en_segundos)})
 
 
+class NoEncontrado(HTTPException):
+    """Lo que se pide (una regla, la tarifa de un viaje) no existe: 404 genérico."""
+
+    def __init__(self, detalle: str):
+        super().__init__(status_code=404, detail=detalle)
+
+
 async def _error_http(request: Request, exc: HTTPException) -> JSONResponse:
     # 404, 405 y los demás errores genéricos. El 405 ya trae el encabezado Allow.
     # Si quien lo lanzó no escribió un detalle propio, no se repite la frase en inglés.

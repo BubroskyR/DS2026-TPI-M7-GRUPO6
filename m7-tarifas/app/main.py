@@ -11,7 +11,7 @@ from app.core import db
 from app.core.cuerpo import ControlDeCuerpoMiddleware
 from app.core.errores import registrar_manejadores
 from app.core.request_id import RequestIdMiddleware
-from app.routers import salud
+from app.routers import salud, tarifas
 
 log = logging.getLogger("m7")
 
@@ -38,3 +38,4 @@ app.add_middleware(ControlDeCuerpoMiddleware)
 app.add_middleware(RequestIdMiddleware)
 registrar_manejadores(app)
 app.include_router(salud.router)
+app.include_router(tarifas.router)

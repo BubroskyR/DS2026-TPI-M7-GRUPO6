@@ -3,4 +3,4 @@
 Cada archivo nuevo se importa acá, para que crear_tablas() encuentre sus tablas al arrancar.
 """
 
-from app.models import idempotencia  # noqa: F401
+from app.models import idempotencia, tarifas  # noqa: F401

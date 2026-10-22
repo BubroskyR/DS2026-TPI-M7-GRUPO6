@@ -1,10 +1,14 @@
 """Conexión a la base de datos propia de M7 (RNF-05)."""
 
+from collections.abc import Iterator
 from datetime import datetime, timezone
+from typing import Annotated
 
-from sqlalchemy import create_engine, text
+from fastapi import Depends
+from sqlalchemy import DateTime, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.types import TypeDecorator
 
 from app.core.config import settings
 
@@ -32,6 +36,34 @@ class Base(DeclarativeBase):
 def ahora() -> datetime:
     """Fecha y hora actual en UTC, para las columnas que registran cuándo pasó algo."""
     return datetime.now(timezone.utc)
+
+
+class FechaHora(TypeDecorator):
+    """Fecha y hora que siempre se lee en UTC.
+
+    SQLite (el de las pruebas) no guarda la zona horaria y PostgreSQL la
+    devuelve en la de su configuración: así las dos responden lo mismo.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_result_value(self, valor: datetime | None, dialect) -> datetime | None:
+        if valor is None:
+            return None
+        if valor.tzinfo is None:
+            return valor.replace(tzinfo=timezone.utc)
+        return valor.astimezone(timezone.utc)
+
+
+def obtener_sesion() -> Iterator[Session]:
+    """Una sesión de base por solicitud, que se cierra sola al terminar."""
+    with SesionLocal() as sesion:
+        yield sesion
+
+
+# Las rutas reciben la sesión así: `sesion: SesionDeBase`.
+SesionDeBase = Annotated[Session, Depends(obtener_sesion)]
 
 
 def base_disponible() -> bool:
