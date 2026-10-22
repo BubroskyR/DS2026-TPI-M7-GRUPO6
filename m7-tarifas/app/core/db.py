@@ -1,5 +1,7 @@
 """Conexión a la base de datos propia de M7 (RNF-05)."""
 
+from datetime import datetime, timezone
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -25,6 +27,11 @@ SesionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 class Base(DeclarativeBase):
     """Clase madre de las tablas de M7, que se definen en app/models."""
+
+
+def ahora() -> datetime:
+    """Fecha y hora actual en UTC, para las columnas que registran cuándo pasó algo."""
+    return datetime.now(timezone.utc)
 
 
 def base_disponible() -> bool:

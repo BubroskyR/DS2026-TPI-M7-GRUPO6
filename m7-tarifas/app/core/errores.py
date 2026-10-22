@@ -1,11 +1,15 @@
 """Errores en formato application/problem+json (RFC 9457), como pide el contrato."""
 
+import logging
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 from starlette.exceptions import HTTPException
+
+log = logging.getLogger("m7")
 
 TIPO_PROBLEMA = "application/problem+json"
 
@@ -88,7 +92,15 @@ async def _error_de_dominio(request: Request, exc: ErrorDeDominio) -> JSONRespon
     )
 
 
+async def _base_no_disponible(request: Request, exc: OperationalError) -> JSONResponse:
+    # La base se cayó o no contesta en medio de una solicitud: 503 genérico,
+    # igual que /health, para que quien llama reintente más tarde.
+    log.error("La base de datos no responde: %s", exc)
+    return await _error_http(request, ServicioNoDisponible())
+
+
 def registrar_manejadores(app: FastAPI) -> None:
     app.add_exception_handler(HTTPException, _error_http)
     app.add_exception_handler(RequestValidationError, _error_de_validacion)
     app.add_exception_handler(ErrorDeDominio, _error_de_dominio)
+    app.add_exception_handler(OperationalError, _base_no_disponible)

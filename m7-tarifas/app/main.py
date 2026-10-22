@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app import models  # noqa: F401  (registra las tablas antes de crearlas)
 from app.core import db
+from app.core.cuerpo import ControlDeCuerpoMiddleware
 from app.core.errores import registrar_manejadores
 from app.core.request_id import RequestIdMiddleware
 from app.routers import salud
@@ -31,6 +32,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=ciclo_de_vida,
 )
+# El último middleware que se agrega es el primero que recibe la solicitud:
+# así el X-Request-Id también va en las respuestas 413 y 415.
+app.add_middleware(ControlDeCuerpoMiddleware)
 app.add_middleware(RequestIdMiddleware)
 registrar_manejadores(app)
 app.include_router(salud.router)

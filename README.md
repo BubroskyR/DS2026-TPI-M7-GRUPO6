@@ -66,7 +66,11 @@ Los diagramas de contexto, de capas y del recorrido de un viaje están en [docs/
 
 ## Base de datos
 
-PostgreSQL, propia de M7: los demás módulos no consultan sus tablas, usan la API (RNF-05). La API crea las tablas que falten al arrancar, a partir de `app/models`. Las tablas se suman con cada parte del módulo.
+PostgreSQL, propia de M7: los demás módulos no consultan sus tablas, usan la API (RNF-05). La API crea las tablas que falten al arrancar, a partir de `app/models`. Las demás tablas se suman con cada parte del módulo.
+
+| Tabla | Qué guarda |
+| --- | --- |
+| `claves_idempotencia` | Cada `Idempotency-Key` usada, con la huella del cuerpo y la respuesta que se devolvió (RF-7.6) |
 
 ## API
 
@@ -154,6 +158,18 @@ cd m7-tarifas
 pytest
 ```
 
+Así nomás, las pruebas usan un archivo SQLite temporal y corren sin Docker. Para correrlas contra PostgreSQL, la misma base que usa M7 (pruebas de integración, RNF-07), se crea una base solo para las pruebas y se la indica en `PRUEBAS_DATABASE_URL`:
+
+```bash
+docker compose up -d m7-db
+docker compose exec m7-db createdb -U m7 m7_pruebas
+export PRUEBAS_DATABASE_URL=postgresql+psycopg://m7:<clave>@localhost:5432/m7_pruebas
+# en Windows (PowerShell): $env:PRUEBAS_DATABASE_URL = "postgresql+psycopg://m7:<clave>@localhost:5432/m7_pruebas"
+pytest
+```
+
+`<clave>` es la de `POSTGRES_PASSWORD`. Cada prueba borra los datos de esa base: nunca hay que apuntarla a la base `m7`, la de desarrollo.
+
 `tests/test_contrato.py` controla que cada operación de la API esté en el contrato oficial. Se saltea mientras el submódulo no tenga el contrato con sus rutas.
 
 ## Dependencias
@@ -177,7 +193,8 @@ pytest
 contratos/            submódulo con los contratos de la cátedra
 m7-tarifas/           el servicio
   app/main.py         arranca FastAPI y suma las rutas
-  app/core/           configuración, base de datos, errores y X-Request-Id
+  app/core/           lo común a todas las rutas: configuración, base de datos, errores,
+                      X-Request-Id, control de cuerpos, paginación e Idempotency-Key
   app/routers/        las rutas, agrupadas como en el contrato
   app/schemas/        los cuerpos del contrato
   app/models/         las tablas de la base

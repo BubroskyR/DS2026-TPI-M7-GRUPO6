@@ -1,5 +1,7 @@
 import re
 
+from sqlalchemy.exc import OperationalError
+
 from app.core import db
 
 
@@ -49,3 +51,21 @@ def test_error_inesperado_responde_500_sin_detalles(cliente, monkeypatch):
     assert respuesta.headers["content-type"] == "application/problem+json"
     assert respuesta.headers["X-Request-Id"] == "abc"
     assert respuesta.json() == {"type": "about:blank", "title": "Error interno", "status": 500}
+
+
+def test_si_la_base_se_cae_durante_la_solicitud_responde_503(cliente, monkeypatch):
+    def base_caida():
+        raise OperationalError("SELECT 1", {}, Exception("se perdió la conexión"))
+
+    monkeypatch.setattr(db, "base_disponible", base_caida)
+
+    respuesta = cliente.get("/health")
+
+    assert respuesta.status_code == 503
+    assert respuesta.headers["content-type"] == "application/problem+json"
+    assert respuesta.headers["Retry-After"] == "5"
+    assert respuesta.json() == {
+        "type": "about:blank",
+        "title": "Servicio no disponible",
+        "status": 503,
+    }
