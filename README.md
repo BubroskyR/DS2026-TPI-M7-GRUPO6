@@ -1,6 +1,6 @@
 # M7: Tarifas, Pagos y Liquidaciones (Grupo 6)
 
-Servicio de tarifas, pagos y liquidaciones de la plataforma de movilidad del TPI 2026 de Desarrollo de Software (UTN FRRe). Cumple el contrato que compartimos con el Grupo 11, que está en el submódulo `contratos`, en `contratos/contratos/m7_tarifas/openapi.yml`. Mientras la cátedra no una el [PR #7](https://github.com/FRRe-DS/2026-TPI/pull/7) con ese contrato, el submódulo apunta a ese PR.
+Servicio de tarifas, pagos y liquidaciones de la plataforma de movilidad del TPI 2026 de Desarrollo de Software (UTN FRRe). Cumple el contrato que compartimos con el Grupo 11, que está en el submódulo `contratos`, en `contratos/contratos/m7_tarifas/openapi.yml`.
 
 **Estado:** TP1 en curso. Responden `GET /health` y las rutas de tarifas: la estimación, la tarifa final de cada viaje y las reglas de tarifa. Faltan los pagos, las cancelaciones, los reembolsos y las liquidaciones. Falta sumar en `keycloak/` el archivo del realm `ds-2026-realm`.
 
