@@ -1,8 +1,8 @@
 # M7: Tarifas, Pagos y Liquidaciones (Grupo 6)
 
-Servicio de tarifas, pagos y liquidaciones de la plataforma de movilidad del TPI 2026 de Desarrollo de Software (UTN FRRe). Cumple el contrato que compartimos con el Grupo 11, que está en el submódulo `contratos`, en `contratos/contratos/m7_tarifas/openapi.yml`.
+Servicio de tarifas, pagos y liquidaciones de la plataforma de movilidad del TPI 2026 de Desarrollo de Software (UTN FRRe). Cumple el contrato que compartimos con el Grupo 11, que está en el submódulo `contratos`, en `contratos/contratos/m7_tarifas/openapi.yml`. Por ahora el submódulo apunta a la versión 1.1.0 del contrato, la del PR #19 de la cátedra (medios de pago del cliente), que todavía no se aceptó; cuando se acepte, vuelve a apuntar al contrato oficial.
 
-**Estado:** TP1 en curso. Responden `GET /health` y las rutas de tarifas: la estimación, la tarifa final de cada viaje y las reglas de tarifa. Faltan los pagos, las cancelaciones, los reembolsos y las liquidaciones. Falta sumar en `keycloak/` el archivo del realm `ds-2026-realm`.
+**Estado:** responden las 26 rutas del contrato 1.1.0: tarifas, pagos, aviso de la pasarela, historial, cargos por cancelación, reembolsos, medios de pago, liquidaciones y saldos. Cada ruta valida el token de Keycloak y su permiso. Faltan sumar en `keycloak/` el archivo del realm `ds-2026-realm` (el de la cátedra todavía no tiene los permisos de M7) y los eventos con RabbitMQ, que son del TP2.
 
 ## Integrantes
 
@@ -23,9 +23,9 @@ Según la consigna, M7 se encarga de la estimación, el cobro, la cancelación, 
 | Requerimiento | Cómo lo resuelve M7 |
 | --- | --- |
 | RF-7.1 Estimación de tarifa | Reglas de tarifa por tipo de vehículo, que configura un operador. Con la regla activa calcula la estimación antes del viaje y la tarifa final cuando termina |
-| RF-7.2 Método de pago | Cada pago indica el medio que eligió el cliente: tarjeta, efectivo o billetera virtual |
+| RF-7.2 Método de pago | El cliente registra sus medios de pago (tarjeta, billetera virtual o efectivo) y elige uno como predeterminado. M7 lo usa en sus cobros; si no tiene ninguno, el viaje se paga en efectivo |
 | RF-7.3 Autorización y captura | Simuladas: en efectivo el pago se aprueba en el acto; con tarjeta o billetera virtual queda pendiente hasta que la pasarela avisa si lo aprobó o lo rechazó |
-| RF-7.4 Cargo de cancelación | Si una cancelación lleva cargo, cobra el monto fijo de la regla activa |
+| RF-7.4 Cargo de cancelación | Si una cancelación lleva cargo, cobra el monto fijo de la regla activa con una tarjeta o billetera virtual del cliente. Si no tiene ninguna, el cargo espera hasta que registre una |
 | RF-7.5 Reintegro | Reembolsos totales o parciales de un pago aprobado |
 | RF-7.6 Idempotencia de pago | El pago, el cargo y el reembolso exigen `Idempotency-Key`: repetir la misma orden no cobra ni reembolsa dos veces |
 | RF-7.7 Historial financiero | Cada pago guarda sus movimientos (registro, aprobación o rechazo y reembolsos), que no se modifican ni se borran |
@@ -43,7 +43,7 @@ Según la consigna, M7 se encarga de la estimación, el cobro, la cancelación, 
 | M8 Notificaciones | Va a recibir los eventos de M7 cuando llegue la mensajería, en el TP2 |
 | Pasarela de pago (simulada) | M7 le pide los cobros con tarjeta o billetera virtual, y ella avisa si los aprobó o los rechazó |
 | Operadores | Configuran las reglas de tarifa, hacen reembolsos y generan las liquidaciones |
-| Clientes | Consultan sus pagos |
+| Clientes | Registran sus medios de pago y consultan sus pagos |
 | Conductores | Consultan sus liquidaciones y su saldo |
 
 ## Tecnologías
@@ -52,6 +52,7 @@ Según la consigna, M7 se encarga de la estimación, el cobro, la cancelación, 
 | --- | --- |
 | Python 3.12 y FastAPI | La API REST ([decisión 0001](docs/decisiones/0001-python-fastapi.md)) |
 | Pydantic | Validar los cuerpos con los esquemas del contrato |
+| PyJWT | Validar los tokens de Keycloak con sus claves públicas |
 | SQLAlchemy y PostgreSQL 16 | La base de datos propia de M7 |
 | Keycloak 24 | El M1 en local, que emite los tokens |
 | Docker y Docker Compose | Levantar la API, su base y Keycloak con un solo comando |
@@ -66,17 +67,22 @@ Los diagramas de contexto, de capas y del recorrido de un viaje están en [docs/
 
 ## Base de datos
 
-PostgreSQL, propia de M7: los demás módulos no consultan sus tablas, usan la API (RNF-05). La API crea las tablas que falten al arrancar, a partir de `app/models`. Las demás tablas se suman con cada parte del módulo.
+PostgreSQL, propia de M7: los demás módulos no consultan sus tablas, usan la API (RNF-05). La API crea las tablas que falten al arrancar, a partir de `app/models`. No cambia las tablas que ya existen: si se cambia una tabla, en local hay que borrar la base con `docker compose down -v`.
 
 | Tabla | Qué guarda |
 | --- | --- |
 | `claves_idempotencia` | Cada `Idempotency-Key` usada, con la huella del cuerpo y la respuesta que se devolvió (RF-7.6) |
 | `reglas_tarifa` | Las reglas de tarifa de cada tipo de vehículo. Un índice único deja una sola activa por tipo |
 | `tarifas_finales` | La tarifa final de cada viaje terminado, con su desglose. El viaje es la clave primaria: hay una sola por viaje |
+| `medios_pago` | Las tarjetas, billeteras virtuales y el efectivo de cada cliente. De una tarjeta guarda solo el token de la pasarela y los últimos 4 dígitos (RNF-19). Un índice único deja un solo predeterminado por cliente. Un medio dado de baja no se borra |
+| `pagos` | Los pagos de los viajes y los cargos por cancelación, con su estado. Índices únicos dejan un solo pago y un solo cargo no rechazados por viaje (RNF-08) |
+| `movimientos_pago` | El historial de cada pago: registro, aprobación, rechazo y reembolsos, con quién lo hizo (RF-7.7). No se modifica ni se borra |
+| `reembolsos` | Los reembolsos totales o parciales de cada pago (RF-7.5) |
+| `liquidaciones` | Las liquidaciones de cada beneficiario por período, con sus pagos e importes (RF-7.8). Cada pago anota en qué liquidación está |
 
 ## API
 
-Las rutas del contrato. Las que ya responden están en **Estado**, arriba. El detalle de cada una (cuerpos, respuestas y errores) está en el contrato, y con la API levantada, http://localhost:8000/docs permite probarlas.
+Las rutas del contrato. El detalle de cada una (cuerpos, respuestas y errores) está en el contrato, y con la API levantada, http://localhost:8000/docs permite probarlas (el botón **Authorize** recibe el token).
 
 | Método | Ruta | Qué hace |
 | --- | --- | --- |
@@ -96,12 +102,43 @@ Las rutas del contrato. Las que ya responden están en **Estado**, arriba. El de
 | GET | `/api/v1/pagos/{pago_id}/reembolsos` | Listar los reembolsos de un pago |
 | POST | `/api/v1/pagos/webhooks/pasarela` | Recibir el resultado que informa la pasarela |
 | POST | `/api/v1/cargos-cancelacion` | Registrar el cargo fijo por una cancelación |
+| POST | `/api/v1/medios-pago` | Registrar un medio de pago del cliente |
+| GET | `/api/v1/medios-pago` | Listar los medios de pago |
+| PATCH | `/api/v1/medios-pago/{medio_pago_id}` | Elegir el medio predeterminado o cambiar su alias |
+| DELETE | `/api/v1/medios-pago/{medio_pago_id}` | Dar de baja un medio de pago |
 | POST | `/api/v1/liquidaciones` | Generar la liquidación de un beneficiario |
 | GET | `/api/v1/liquidaciones` | Listar liquidaciones |
 | GET | `/api/v1/liquidaciones/saldos/{beneficiario_id}` | Consultar el saldo de un beneficiario |
 | GET | `/api/v1/liquidaciones/{liquidacion_id}` | Consultar una liquidación |
 | POST | `/api/v1/liquidaciones/{liquidacion_id}/transferencia` | Registrar la transferencia al beneficiario |
 | POST | `/api/v1/liquidaciones/{liquidacion_id}/anulacion` | Anular una liquidación pendiente |
+
+## Tokens y permisos
+
+Cada ruta, menos `GET /health` y el aviso de la pasarela, pide un token de Keycloak (M1) en `Authorization: Bearer <token>` con el permiso que dice el contrato (`tarifas:read`, `pagos:write`, etc.). M7 controla la firma del token con las claves públicas de Keycloak, que no esté vencido y que sea del realm `ds-2026-realm`. Sin token, o con uno inválido, responde `401`; sin el permiso, `403`; si Keycloak no responde, `503`.
+
+Si el token es de una persona, M7 también mira su rol (RF-1.3), en `realm_access.roles`:
+
+- un `CLIENTE` solo ve sus pagos y maneja sus medios de pago; no puede registrar pagos, cargos ni reembolsos;
+- un `CONDUCTOR` solo ve sus liquidaciones y su saldo;
+- un `OPERADOR` ve todo.
+
+El `sub` del token de la persona es su `cliente_id` o su `beneficiario_id`. Los módulos usan su cuenta de servicio, sin esos roles.
+
+El realm de la cátedra todavía no tiene los permisos de M7. Mientras tanto, para desarrollar o integrarse con otro módulo, se puede poner `AUTH_DISABLED=true` en el `.env`: M7 deja de pedir el token.
+
+## Pasarela de pago simulada
+
+Con tarjeta o billetera virtual, M7 le pide el cobro a una pasarela simulada (`app/services/pasarela.py`, RF-7.3): el pago queda `pendiente`, con su `referencia_externa`. Para simular el aviso de la pasarela, se llama a la ruta del aviso con el secreto del `.env`:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/pagos/webhooks/pasarela \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: <PASARELA_WEBHOOK_SECRET>" \
+  -d '{"pago_id": "<id del pago>", "referencia_externa": "<referencia_externa del pago>", "estado": "aprobado"}'
+```
+
+Con `"estado": "rechazado"`, el pago queda rechazado y el viaje se puede volver a cobrar.
 
 ## Eventos
 
@@ -174,6 +211,8 @@ pytest
 
 `tests/test_contrato.py` controla que cada operación de la API esté en el contrato oficial. Se saltea mientras el submódulo no tenga el contrato con sus rutas.
 
+Casi todas las pruebas corren sin token (`AUTH_DISABLED=true`) para probar las reglas de negocio. `tests/test_seguridad.py` vuelve a pedir el token: levanta un "Keycloak de prueba" que publica una clave pública, firma los tokens con su clave privada y controla que cada ruta pida el permiso del contrato.
+
 ## Dependencias
 
 `m7-tarifas/requirements.txt` tiene la versión exacta de cada dependencia, para que la instalación sea igual en todas las máquinas (filmina DS-02). Para sumar una librería: `pip install <librería>`, después `pip freeze > requirements.txt`, y se suben los dos cambios juntos.
@@ -184,9 +223,10 @@ pytest
 | --- | --- |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Base de datos de M7 |
 | `KEYCLOAK_ADMIN_PASSWORD` | Clave del usuario `admin` de Keycloak en local |
-| `AUTH_DISABLED` | `true` saltea la validación del token; solo para desarrollar |
+| `AUTH_DISABLED` | `true` saltea la validación del token; solo para desarrollar o integrarse mientras el realm no tenga los permisos de M7 |
 | `PASARELA_WEBHOOK_SECRET` | Clave que manda la pasarela simulada en `X-Webhook-Secret` |
 | `COMISION_PLATAFORMA` | Comisión de las liquidaciones (`0.20` es 20%) |
+| `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_JWKS_URI` | Quién emite los tokens y de dónde se bajan sus claves públicas. Ya vienen en `docker-compose.yml` |
 | `DATABASE_URL` | Conexión a la base, solo para correr sin Docker |
 
 ## Estructura
