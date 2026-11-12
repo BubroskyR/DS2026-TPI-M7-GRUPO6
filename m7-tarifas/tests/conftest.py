@@ -10,6 +10,11 @@ _SQLITE_DE_PRUEBA.unlink(missing_ok=True)
 os.environ["DATABASE_URL"] = os.environ.get(
     "PRUEBAS_DATABASE_URL", f"sqlite:///{_SQLITE_DE_PRUEBA.as_posix()}"
 )
+# Casi todas las pruebas no mandan token: prueban las reglas de negocio. Las de
+# tokens (test_seguridad.py) vuelven a activar la validación.
+os.environ["AUTH_DISABLED"] = "true"
+# El secreto con el que la pasarela simulada avisa el resultado de un cobro.
+os.environ["PASARELA_WEBHOOK_SECRET"] = "secreto-de-prueba"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

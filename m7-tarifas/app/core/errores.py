@@ -62,10 +62,26 @@ class ErrorDeDominio(Exception):
 
 
 class ServicioNoDisponible(HTTPException):
-    """La base de M7 no responde: 503 genérico con Retry-After."""
+    """La base de M7 (o Keycloak, para validar un token) no responde: 503 con Retry-After."""
 
-    def __init__(self, reintentar_en_segundos: int = 5):
-        super().__init__(status_code=503, headers={"Retry-After": str(reintentar_en_segundos)})
+    def __init__(self, reintentar_en_segundos: int = 5, detalle: str | None = None):
+        super().__init__(
+            status_code=503, detail=detalle, headers={"Retry-After": str(reintentar_en_segundos)}
+        )
+
+
+class NoAutenticado(HTTPException):
+    """Falta el token o no es válido: 401 genérico. WWW-Authenticate dice que se usa Bearer."""
+
+    def __init__(self, detalle: str):
+        super().__init__(status_code=401, detail=detalle, headers={"WWW-Authenticate": "Bearer"})
+
+
+class SinPermiso(HTTPException):
+    """El token no tiene el permiso de la operación, o la persona no es la dueña: 403 genérico."""
+
+    def __init__(self, detalle: str):
+        super().__init__(status_code=403, detail=detalle)
 
 
 class NoEncontrado(HTTPException):

@@ -3,10 +3,11 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.db import SesionDeBase
 from app.core.paginacion import ParametrosDePagina
+from app.core.seguridad import requiere, requiere_modulo_u_operador
 from app.schemas.comunes import TipoVehiculo
 from app.schemas.tarifas import (
     Desglose,
@@ -24,12 +25,18 @@ from app.services import tarifas as servicio
 PREFIJO = "/api/v1/tarifas"
 router = APIRouter(prefix=PREFIJO, tags=["Tarifas"])
 
+# Estiman M5 y M9; consultan M6 y los operadores.
+LEE_TARIFAS = Depends(requiere("tarifas:read"))
+# Registra la tarifa final M6; las reglas, los operadores. Un cliente o un conductor no.
+ESCRIBE_TARIFAS = Depends(requiere_modulo_u_operador("tarifas:write"))
+
 
 @router.post(
     "/estimaciones",
     response_model=Estimacion,
     operation_id="estimarTarifa",
     summary="Estimar la tarifa de un viaje",
+    dependencies=[LEE_TARIFAS],
 )
 def estimar_tarifa(datos: EstimacionNueva, sesion: SesionDeBase) -> Estimacion:
     """Calcula el precio de un viaje antes de confirmarlo, con la regla activa del tipo
@@ -43,6 +50,7 @@ def estimar_tarifa(datos: EstimacionNueva, sesion: SesionDeBase) -> Estimacion:
     response_model=TarifaFinal,
     operation_id="calcularTarifaFinal",
     summary="Calcular y registrar la tarifa final de un viaje terminado",
+    dependencies=[ESCRIBE_TARIFAS],
 )
 def calcular_tarifa_final(
     viaje_id: uuid.UUID, datos: TarifaFinalNueva, sesion: SesionDeBase, response: Response
@@ -59,6 +67,7 @@ def calcular_tarifa_final(
     response_model=TarifaFinal,
     operation_id="obtenerTarifaFinal",
     summary="Consultar la tarifa final de un viaje",
+    dependencies=[LEE_TARIFAS],
 )
 def obtener_tarifa_final(viaje_id: uuid.UUID, sesion: SesionDeBase) -> TarifaFinal:
     """Si el viaje todavía no tiene tarifa final, 404."""
@@ -70,6 +79,7 @@ def obtener_tarifa_final(viaje_id: uuid.UUID, sesion: SesionDeBase) -> TarifaFin
     response_model=PaginaReglas,
     operation_id="listarReglas",
     summary="Listar las reglas de tarifa",
+    dependencies=[LEE_TARIFAS],
 )
 def listar_reglas(
     sesion: SesionDeBase,
@@ -90,6 +100,7 @@ def listar_reglas(
     response_model=ReglaTarifa,
     operation_id="crearRegla",
     summary="Crear una regla de tarifa",
+    dependencies=[ESCRIBE_TARIFAS],
 )
 def crear_regla(datos: ReglaTarifaNueva, sesion: SesionDeBase, response: Response):
     """Si la regla nueva es activa, la que estaba activa para el mismo tipo de vehículo
@@ -104,6 +115,7 @@ def crear_regla(datos: ReglaTarifaNueva, sesion: SesionDeBase, response: Respons
     response_model=ReglaTarifa,
     operation_id="obtenerRegla",
     summary="Consultar una regla de tarifa",
+    dependencies=[LEE_TARIFAS],
 )
 def obtener_regla(regla_id: uuid.UUID, sesion: SesionDeBase):
     return servicio.obtener_regla(sesion, regla_id)
@@ -114,6 +126,7 @@ def obtener_regla(regla_id: uuid.UUID, sesion: SesionDeBase):
     response_model=ReglaTarifa,
     operation_id="actualizarRegla",
     summary="Modificar una regla de tarifa",
+    dependencies=[ESCRIBE_TARIFAS],
 )
 def actualizar_regla(regla_id: uuid.UUID, cambios: ReglaTarifaCambios, sesion: SesionDeBase):
     """Actualiza solo los campos enviados. Si la regla pasa a activa, la otra activa del

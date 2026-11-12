@@ -7,11 +7,7 @@ from decimal import Decimal
 from sqlalchemy import ForeignKey, Index, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, FechaHora, ahora
-
-# Importes en pesos, con dos decimales: el contrato redondea al centavo.
-# Llegan hasta 9.999.999.999,99 (IMPORTE_MAXIMO, en app/schemas/comunes.py).
-IMPORTE = Numeric(12, 2)
+from app.core.db import IMPORTE, Base, FechaHora, ahora
 
 
 class ReglaTarifa(Base):
