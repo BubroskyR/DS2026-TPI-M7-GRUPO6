@@ -23,7 +23,7 @@ flowchart LR
     M9 -->|"estimación, cargo y reembolso<br>de una reserva cancelada"| M7
     M6 -->|"tarifa final, pago<br>y cargo por cancelación"| M7
     OP -->|"reglas de tarifa, reembolsos<br>y liquidaciones"| M7
-    PER -->|"sus pagos, liquidaciones y saldo"| M7
+    PER -->|"sus medios de pago, sus pagos,<br>liquidaciones y saldo"| M7
     M7 --> BD
     M7 -.->|valida los tokens| M1
     M7 -->|pide el cobro| PAS
@@ -56,23 +56,27 @@ flowchart TB
 
 ## Recorrido de un viaje
 
-Cómo se cobra un viaje y cómo se le liquida al conductor, como lo describe el contrato.
+Cómo se cobra un viaje y cómo se le liquida al conductor, como lo describe el contrato. Antes, el cliente registra su medio de pago en M7 (RF-7.2).
 
 ```mermaid
 sequenceDiagram
     autonumber
+    participant C as Cliente
     participant D as M5 o M9
     participant V as M6 Viajes
     participant M7 as M7
     participant P as Pasarela de pago
     participant O as Operador
 
+    C->>M7: POST /api/v1/medios-pago con el token que le dio la pasarela
+    M7-->>C: 201 con su tarjeta, que queda como predeterminada
     D->>M7: POST /api/v1/tarifas/estimaciones
     M7-->>D: 200 con el precio estimado, que no se guarda
     Note over V: El viaje termina
     V->>M7: POST /api/v1/tarifas/viajes/{viaje_id}/tarifa-final
     M7-->>V: 201 con la tarifa final, según la distancia y el tiempo reales
-    V->>M7: POST /api/v1/pagos con Idempotency-Key
+    V->>M7: POST /api/v1/pagos con Idempotency-Key, sin metodo
+    Note over M7: Usa el medio predeterminado del cliente<br>o, si no tiene, efectivo
     alt En efectivo
         M7-->>V: 201 con el pago aprobado
     else Con tarjeta o billetera virtual

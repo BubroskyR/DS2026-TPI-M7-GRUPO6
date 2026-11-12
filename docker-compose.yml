@@ -4,7 +4,7 @@
 services:
   m7-api:
     build: ./m7-tarifas
-    image: m7-tarifas:0.1.0
+    image: m7-tarifas:0.2.0
     ports:
       - "8000:8000"
     environment:

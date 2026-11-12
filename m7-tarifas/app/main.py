@@ -11,7 +11,7 @@ from app.core import db
 from app.core.cuerpo import ControlDeCuerpoMiddleware
 from app.core.errores import registrar_manejadores
 from app.core.request_id import RequestIdMiddleware
-from app.routers import salud, tarifas
+from app.routers import cancelaciones, liquidaciones, medios_pago, pagos, reembolsos, salud, tarifas
 
 log = logging.getLogger("m7")
 
@@ -29,7 +29,7 @@ async def ciclo_de_vida(app: FastAPI):
 
 app = FastAPI(
     title="M7: Tarifas, Pagos y Liquidaciones",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=ciclo_de_vida,
 )
 # El último middleware que se agrega es el primero que recibe la solicitud:
@@ -39,3 +39,8 @@ app.add_middleware(RequestIdMiddleware)
 registrar_manejadores(app)
 app.include_router(salud.router)
 app.include_router(tarifas.router)
+app.include_router(pagos.router)
+app.include_router(reembolsos.router)
+app.include_router(cancelaciones.router)
+app.include_router(medios_pago.router)
+app.include_router(liquidaciones.router)

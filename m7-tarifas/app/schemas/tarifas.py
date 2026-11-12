@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 from app.core.paginacion import Pagina
-from app.schemas.comunes import Importe, Moneda, Multiplicador, Positivo, TipoVehiculo
+from app.schemas.comunes import Cambios, Importe, Moneda, Multiplicador, Positivo, TipoVehiculo
 
 
 class Desglose(BaseModel):
@@ -70,10 +70,8 @@ class ReglaTarifaNueva(BaseModel):
     activa: bool = True
 
 
-class ReglaTarifaCambios(BaseModel):
+class ReglaTarifaCambios(Cambios):
     """Solo los campos que cambian. El tipo de vehículo no se puede cambiar."""
-
-    model_config = ConfigDict(extra="forbid")
 
     tarifa_base: Importe | None = None
     precio_por_km: Importe | None = None
@@ -81,16 +79,6 @@ class ReglaTarifaCambios(BaseModel):
     tarifa_minima: Importe | None = None
     cargo_cancelacion: Importe | None = None
     activa: bool | None = None
-
-    @model_validator(mode="after")
-    def _al_menos_un_campo_y_ninguno_null(self):
-        # Un cuerpo vacío o un campo en null responden 400, como cualquier formato inválido.
-        if not self.model_fields_set:
-            raise ValueError("hay que enviar al menos un campo")
-        nulos = sorted(campo for campo in self.model_fields_set if getattr(self, campo) is None)
-        if nulos:
-            raise ValueError(f"no pueden ser null: {', '.join(nulos)}")
-        return self
 
 
 class ReglaTarifa(BaseModel):

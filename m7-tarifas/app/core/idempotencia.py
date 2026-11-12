@@ -11,13 +11,27 @@ misma clave vuelve a llegar:
 import hashlib
 import json
 from collections.abc import Callable
+from typing import Annotated
 
+from fastapi import Header
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errores import ErrorDeDominio
 from app.models.idempotencia import ClaveIdempotencia
+
+# Las rutas que cobran o reembolsan reciben la clave así: `clave: ClaveDeIdempotencia`.
+# Es obligatoria: si falta, o es vacía o muy larga, 400.
+ClaveDeIdempotencia = Annotated[
+    str,
+    Header(
+        alias="Idempotency-Key",
+        min_length=1,
+        max_length=255,
+        description="Clave única de la solicitud (se recomienda un UUID).",
+    ),
+]
 
 
 def ejecutar_una_vez(
